@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "pdf-reader-friend",
+    "name": "PDF Reader Friend",
     "slug": "pdf-reader-friend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,15 +10,23 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.pdfreader.friend",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "@config-plugins/react-native-pdf"
+    ]
   }
 }
