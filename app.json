@@ -31,7 +31,10 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "eas": {}
-    }
+      "eas": {
+        "projectId": "d066e241-a949-46c3-9eb8-9d900cc2ae9b"
+      }
+    },
+    "owner": "dongquann1504"
   }
 }
