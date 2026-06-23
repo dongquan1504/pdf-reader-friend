@@ -1,22 +1,36 @@
 /**
- * TTSService
+ * TTSService — Text-to-Speech with Android Media Notification
  *
- * Text-to-Speech singleton using expo-speech (works in Expo Go, no Dev Client needed).
+ * Architecture:
+ *   - expo-speech        : does the actual audio reading via Android TTS engine
+ *   - react-native-track-player (RNTP) : holds the Android MediaSession so the OS
+ *     shows a media notification with pause/play/next buttons on lock screen and
+ *     notification tray. RNTP plays a very short silent MP3 in a loop to keep the
+ *     MediaSession alive; the real speech comes from expo-speech.
  *
- * Custom pause/resume strategy (expo-speech has no native pause on Android):
- *   - Split text into sentence chunks (~250 chars each)
- *   - Speak chunk by chunk; on each onDone → advance to next chunk
- *   - pause()  → Speech.stop() + save current chunk index
- *   - resume() → Speech.speak() from saved chunk index
+ * Remote-control flow:
+ *   Lock screen pause button
+ *     -> RNTP RemotePause event (TrackPlayerService.js)
+ *     -> TrackPlayer.pause()
+ *     -> playback-state changes to Paused
+ *     -> useTrackPlayerEvents listener in PDFViewerScreen calls TTSService.pause()
  *
- * State machine:  idle ──speak()──▶ playing ──pause()──▶ paused
- *                  ▲                   │                    │
- *                  └──────stop()───────┘◀────resume()───────┘
+ * Chunk-based pause/resume (Android expo-speech has no native pause):
+ *   pause()  -> Speech.stop()  + save chunk index + RNTP.pause()
+ *   resume() -> Speech.speak() from saved chunk  + RNTP.play()
  */
 import * as Speech from "expo-speech";
+import TrackPlayer, {
+  AppKilledPlaybackBehavior,
+  Capability,
+} from "react-native-track-player";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-const MAX_CHUNK_LEN = 250; // chars; stay well under Android TTS limit
+// Short silent MP3 to keep RNTP MediaSession alive without audible sound
+const SILENT_AUDIO_URL =
+  "https://cdn.jsdelivr.net/gh/anars/blank-audio@master/250-milliseconds-of-silence.mp3";
+
+// ─── Config ──────────────────────────────────────────────────────────────────
+const MAX_CHUNK_LEN = 250;
 const DEFAULT_LANGUAGE = "vi-VN";
 
 // ─── Module state ─────────────────────────────────────────────────────────────
@@ -25,12 +39,69 @@ let _currentIdx = 0;
 let _state = "idle"; // 'idle' | 'playing' | 'paused'
 let _rate = 1.0;
 let _language = DEFAULT_LANGUAGE;
-let _voiceId = null; // identifier from Speech.getAvailableVoicesAsync()
+let _voiceId = null;
+let _playerReady = false;
 
 // Callbacks set per speak() call
+let _onChunkChange = null; // (chunkText, idx, total) -> void
+let _onDone = null;        // () -> void
+let _onStateChange = null; // (state) -> void
+
 let _onChunkChange = null; // (chunkText, idx, total) → void
 let _onDone = null; // () → void
 let _onStateChange = null; // (state) → void
+
+// ─── RNTP setup ──────────────────────────────────────────────────────────────
+
+export async function setupPlayer() {
+  if (_playerReady) return;
+  try {
+    await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
+    await TrackPlayer.updateOptions({
+      android: {
+        appKilledPlaybackBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
+      },
+      capabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.Stop,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
+      ],
+      compactViewCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.SkipToNext,
+      ],
+      notificationCapabilities: [
+        Capability.Play,
+        Capability.Pause,
+        Capability.Stop,
+        Capability.SkipToNext,
+        Capability.SkipToPrevious,
+      ],
+    });
+    // Seed with a silent track so MediaSession is always valid
+    await TrackPlayer.add({
+      id: "tts-session",
+      url: SILENT_AUDIO_URL,
+      title: "PDF Reader Friend",
+      artist: "Dang tai...",
+      duration: 0.25,
+    });
+    _playerReady = true;
+    console.log("[TTSService] TrackPlayer ready");
+  } catch (e) {
+    console.warn("[TTSService] setupPlayer error:", e?.message);
+  }
+}
+
+export async function updateNotification(title, artist) {
+  if (!_playerReady) return;
+  try {
+    await TrackPlayer.updateNowPlayingMetadata({ title, artist });
+  } catch (_) {}
+}
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -88,6 +159,8 @@ function speakChunk(idx) {
     console.log("[TTSService] all chunks done");
     setState("idle");
     _onDone?.();
+    // Show paused state on notification when reading finishes
+    TrackPlayer.pause().catch(() => {});
     return;
   }
   _currentIdx = idx;
@@ -127,12 +200,7 @@ function speakChunk(idx) {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Start reading text from the beginning.
- * @param {string} text - Full text to read
- * @param {object} callbacks
- *   onChunkChange(chunkText, idx, total) — called when each new chunk starts
- *   onDone()                             — called when all chunks finish
- *   onStateChange(state)                 — called on every state transition
+ * Start reading text from the beginning (or from startChunkIndex).
  */
 export function speak(
   text,
@@ -152,37 +220,40 @@ export function speak(
     Math.min(Math.floor(startChunkIndex), _chunks.length - 1),
   );
   setState("playing");
+  // Tell RNTP we are playing so notification shows pause button
+  TrackPlayer.play().catch(() => {});
   speakChunk(safeStart);
 }
 
 /**
- * Pause: stop speech engine, remember current position.
- * Does nothing if not playing.
+ * Pause reading. Stops speech engine, remembers current chunk.
  */
 export function pause() {
   if (_state !== "playing") return;
   setState("paused");
   Speech.stop();
+  TrackPlayer.pause().catch(() => {});
 }
 
 /**
- * Resume from the chunk that was playing when pause() was called.
- * Does nothing if not paused.
+ * Resume from the chunk that was paused.
  */
 export function resume() {
   if (_state !== "paused") return;
   setState("playing");
+  TrackPlayer.play().catch(() => {});
   speakChunk(_currentIdx);
 }
 
 /**
- * Stop completely and reset position.
+ * Stop completely.
  */
 export function stop() {
   Speech.stop();
   setState("idle");
   _chunks = [];
   _currentIdx = 0;
+  TrackPlayer.pause().catch(() => {});
 }
 
 /**

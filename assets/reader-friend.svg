@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="appGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF3366" />
+      <stop offset="50%" stop-color="#9333EA" />
+      <stop offset="100%" stop-color="#4F46E5" />
+    </linearGradient>
+    <linearGradient id="smileGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF3366" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#appGradient)" />
+
+  <path d="M 130 260 A 126 126 0 0 1 382 260" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" opacity="0.9" />
+
+  <g filter="url(#dropShadow)">
+    <path d="M 170 140 H 290 L 342 192 V 368 C 342 378 334 386 324 386 H 188 C 178 386 170 378 170 368 Z" fill="#FFFFFF" />
+    <path d="M 290 140 V 192 H 342 Z" fill="#E2E8F0" />
+  </g>
+
+  <rect x="110" y="235" width="24" height="64" rx="12" fill="#FFFFFF" filter="url(#dropShadow)" />
+  <rect x="378" y="235" width="24" height="64" rx="12" fill="#FFFFFF" filter="url(#dropShadow)" />
+
+  <text x="194" y="225" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="26" fill="url(#smileGradient)" letter-spacing="1">PDF</text>
+
+  <g fill="url(#smileGradient)">
+    <rect x="206" y="255" width="10" height="35" rx="5" />
+    <rect x="224" y="270" width="10" height="35" rx="5" />
+    <rect x="242" y="280" width="10" height="40" rx="5" />
+    <rect x="260" y="280" width="10" height="40" rx="5" />
+    <rect x="278" y="270" width="10" height="35" rx="5" />
+    <rect x="296" y="255" width="10" height="35" rx="5" />
+  </g>
+</svg>

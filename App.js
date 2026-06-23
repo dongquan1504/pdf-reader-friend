@@ -7,11 +7,15 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import AppNavigator from "./src/navigation/AppNavigator";
 import * as TTSService from "./src/services/TTSService";
 
-// Load persisted voice setting on startup
+// Load persisted voice setting on startup + initialise RNTP player
 function AppShell() {
   const { isDark } = useTheme();
 
   useEffect(() => {
+    // Setup TrackPlayer (creates MediaSession / notification channel)
+    TTSService.setupPlayer().catch(() => {});
+
+    // Restore saved voice selection
     AsyncStorage.getItem("tts_voice_id")
       .then((id) => {
         if (id) TTSService.setVoiceId(id);
