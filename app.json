@@ -22,11 +22,16 @@
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#E6F4FE"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "@config-plugins/react-native-pdf"
-    ]
+    "extra": {
+      "eas": {}
+    }
   }
 }
