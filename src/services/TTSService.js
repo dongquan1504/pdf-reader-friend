@@ -20,10 +20,20 @@
  *   resume() -> Speech.speak() from saved chunk  + RNTP.play()
  */
 import * as Speech from "expo-speech";
-import TrackPlayer, {
-  AppKilledPlaybackBehavior,
-  Capability,
-} from "react-native-track-player";
+
+// Lazy-load RNTP so the app doesn't crash on APKs where the native module
+// isn't linked yet (e.g. old builds before RNTP was added to the project).
+let TrackPlayer = null;
+let AppKilledPlaybackBehavior = null;
+let Capability = null;
+try {
+  const rntp = require("react-native-track-player");
+  TrackPlayer = rntp.default;
+  AppKilledPlaybackBehavior = rntp.AppKilledPlaybackBehavior;
+  Capability = rntp.Capability;
+} catch (e) {
+  console.warn("[TTSService] RNTP native module unavailable — media notification disabled");
+}
 
 // Short silent MP3 to keep RNTP MediaSession alive without audible sound
 const SILENT_AUDIO_URL =
@@ -44,17 +54,14 @@ let _playerReady = false;
 
 // Callbacks set per speak() call
 let _onChunkChange = null; // (chunkText, idx, total) -> void
-let _onDone = null;        // () -> void
+let _onDone = null; // () -> void
 let _onStateChange = null; // (state) -> void
-
-let _onChunkChange = null; // (chunkText, idx, total) → void
-let _onDone = null; // () → void
-let _onStateChange = null; // (state) → void
 
 // ─── RNTP setup ──────────────────────────────────────────────────────────────
 
 export async function setupPlayer() {
   if (_playerReady) return;
+  if (!TrackPlayer) return; // native module not available in this build
   try {
     await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
     await TrackPlayer.updateOptions({

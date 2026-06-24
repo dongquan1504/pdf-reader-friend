@@ -37,11 +37,20 @@ import {
   setPageText,
 } from "../services/TextExtractorService";
 import * as TTSService from "../services/TTSService";
-import { Event as RNTPEvent, State as RNTPState, useTrackPlayerEvents } from "react-native-track-player";
 
-// Listen to RNTP remote-control events (lock screen / notification buttons)
-// This must be at module level so it wires up as soon as the screen mounts.
-const RNTP_EVENTS = [RNTPEvent.PlaybackState, RNTPEvent.RemotePlay, RNTPEvent.RemotePause, RNTPEvent.RemoteStop, RNTPEvent.RemoteNext, RNTPEvent.RemotePrevious];
+// Lazy-load RNTP so the screen renders even on builds without the native module.
+let useTrackPlayerEvents = () => {}; // no-op until native module is available
+let RNTPEvent = {};
+let RNTPState = {};
+try {
+  const rntp = require("react-native-track-player");
+  useTrackPlayerEvents = rntp.useTrackPlayerEvents;
+  RNTPEvent = rntp.Event;
+  RNTPState = rntp.State;
+} catch (e) {
+  console.warn("[PDFViewerScreen] RNTP unavailable — lock screen controls disabled");
+}
+const RNTP_EVENTS = Object.values(RNTPEvent);
 
 // PDF.js viewer HTML — PDF data is injected later via injectJavaScript
 const VIEWER_HTML = `<!DOCTYPE html>
@@ -516,16 +525,20 @@ export default function PDFViewerScreen() {
   // RemotePause / RemotePlay mirror the in-app pause/resume buttons.
   // RemoteNext / RemotePrevious skip to the adjacent page.
   useTrackPlayerEvents(RNTP_EVENTS, async (event) => {
-    if (event.type === RNTPEvent.RemotePause || (
-      event.type === RNTPEvent.PlaybackState && event.state === RNTPState.Paused
-      && TTSService.getState() === "playing"
-    )) {
+    if (
+      event.type === RNTPEvent.RemotePause ||
+      (event.type === RNTPEvent.PlaybackState &&
+        event.state === RNTPState.Paused &&
+        TTSService.getState() === "playing")
+    ) {
       TTSService.pause();
       setTtsState("paused");
-    } else if (event.type === RNTPEvent.RemotePlay || (
-      event.type === RNTPEvent.PlaybackState && event.state === RNTPState.Playing
-      && TTSService.getState() === "paused"
-    )) {
+    } else if (
+      event.type === RNTPEvent.RemotePlay ||
+      (event.type === RNTPEvent.PlaybackState &&
+        event.state === RNTPState.Playing &&
+        TTSService.getState() === "paused")
+    ) {
       TTSService.resume();
       setTtsState("playing");
     } else if (event.type === RNTPEvent.RemoteStop) {
@@ -537,7 +550,9 @@ export default function PDFViewerScreen() {
       const nextPage = visiblePage + 1;
       if (nextPage <= totalPagesRef.current) {
         TTSService.stop();
-        webviewRef.current?.injectJavaScript("window.scrollToPage(" + nextPage + "); void 0;");
+        webviewRef.current?.injectJavaScript(
+          "window.scrollToPage(" + nextPage + "); void 0;",
+        );
         setTimeout(() => handlePlay({ page: nextPage }), 400);
       }
     } else if (event.type === RNTPEvent.RemotePrevious) {
@@ -545,7 +560,9 @@ export default function PDFViewerScreen() {
       const prevPage = visiblePage - 1;
       if (prevPage >= 1) {
         TTSService.stop();
-        webviewRef.current?.injectJavaScript("window.scrollToPage(" + prevPage + "); void 0;");
+        webviewRef.current?.injectJavaScript(
+          "window.scrollToPage(" + prevPage + "); void 0;",
+        );
         setTimeout(() => handlePlay({ page: prevPage }), 400);
       }
     }
