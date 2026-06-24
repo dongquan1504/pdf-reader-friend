@@ -32,8 +32,20 @@ try {
   AppKilledPlaybackBehavior = rntp.AppKilledPlaybackBehavior;
   Capability = rntp.Capability;
 } catch (e) {
-  console.warn("[TTSService] RNTP native module unavailable — media notification disabled");
+  console.warn(
+    "[TTSService] RNTP native module unavailable — media notification disabled",
+  );
 }
+
+// Safe wrappers — no-op when RNTP native module is absent
+const tp = {
+  play: () =>
+    TrackPlayer ? TrackPlayer.play().catch(() => {}) : Promise.resolve(),
+  pause: () =>
+    TrackPlayer ? TrackPlayer.pause().catch(() => {}) : Promise.resolve(),
+  stop: () =>
+    TrackPlayer ? TrackPlayer.stop().catch(() => {}) : Promise.resolve(),
+};
 
 // Short silent MP3 to keep RNTP MediaSession alive without audible sound
 const SILENT_AUDIO_URL =
@@ -167,7 +179,7 @@ function speakChunk(idx) {
     setState("idle");
     _onDone?.();
     // Show paused state on notification when reading finishes
-    TrackPlayer.pause().catch(() => {});
+    tp.pause();
     return;
   }
   _currentIdx = idx;
@@ -228,7 +240,7 @@ export function speak(
   );
   setState("playing");
   // Tell RNTP we are playing so notification shows pause button
-  TrackPlayer.play().catch(() => {});
+  tp.play();
   speakChunk(safeStart);
 }
 
@@ -239,7 +251,7 @@ export function pause() {
   if (_state !== "playing") return;
   setState("paused");
   Speech.stop();
-  TrackPlayer.pause().catch(() => {});
+  tp.pause();
 }
 
 /**
@@ -248,7 +260,7 @@ export function pause() {
 export function resume() {
   if (_state !== "paused") return;
   setState("playing");
-  TrackPlayer.play().catch(() => {});
+  tp.play();
   speakChunk(_currentIdx);
 }
 
@@ -260,7 +272,7 @@ export function stop() {
   setState("idle");
   _chunks = [];
   _currentIdx = 0;
-  TrackPlayer.pause().catch(() => {});
+  tp.pause();
 }
 
 /**
